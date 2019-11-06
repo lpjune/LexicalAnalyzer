@@ -32,7 +32,7 @@ float R(void);
 float T(void);
 float F(void);
 float U(void);
-void G(void);
+float G(void);
 void O(void);
 void C(void);
 void W(void);
@@ -139,19 +139,16 @@ void P(void)
         iTok = yylex();
     }
 
-
-// Read the next token
-iTok == yylex();
-cout << psp(CurPcnt) << "exit P " << CurPcnt << endl;
+    // Read the next token
+    iTok == yylex();
+    cout << psp(CurPcnt) << "exit P " << CurPcnt << endl;
 }
 
 //*****************************************************************************
 // S --> A | G | O | C | W
 void S(void)
-{
-    float rValue = 0;          // the value to return
-    SymbolTableT::iterator it; // look up values in symbol table
-    static int Scnt = 0;       // Count the number of F's
+{                        // the value to return
+    static int Scnt = 0; // Count the number of F's
     int CurScnt = Scnt++;
     char const *err =
         "assignment statement does not start with 'let' | 'read' | 'print' | 'if' | 'while'";
@@ -298,38 +295,25 @@ float B(void)
         throw Rerr;
 
     // As long as the next token is and or or, keep parsing B's
-    while (iTok == TOK_LESSTHAN || iTok == TOK_GREATERTHAN || iTok == TOK_EQUALTO)
+    while (iTok == TOK_LESSTHAN || iTok == TOK_GREATERTHAN || iTok == TOK_ASSIGN)
     {
         cout << "-->found " << yytext << endl;
         int iTokLast = iTok;
         iTok = yylex();
+        if (IsFirstOfR())
+            rValue2 = R();
+        else
+            throw Rerr;
 
         // Perform the operation to update rValue1 acording to rValue2
         switch (iTokLast)
         {
-        case TOK_LESSTHAN:
-            if (IsFirstOfR())
-                rValue2 = R();
-            else
-                throw Rerr;
-            rValue1 = rValue1 < rValue2;
+        case TOK_MULTIPLY:
+            rValue1 = rValue1 * rValue2;
             break;
 
-        case TOK_GREATERTHAN:
-            if (IsFirstOfR())
-                rValue2 = R();
-            else
-                throw Rerr;
-            rValue1 = rValue1 > rValue2;
-            break;
-
-        case TOK_EQUALTO:
-            if (IsFirstOfR())
-                rValue2 = R();
-            else
-                throw Rerr;
-            rValue1 = rValue1 == rValue2;
-            break;
+        case TOK_DIVIDE:
+            rValue1 = rValue1 / rValue2;
         }
     }
 
@@ -436,9 +420,8 @@ float T(void)
 // F --> [ not | - ] U
 float F(void)
 {
-    float rValue = 0;          // the value to return
-    SymbolTableT::iterator it; // look up values in symbol table
-    static int Fcnt = 0;       // Count the number of F's
+    float rValue = 0;    // the value to return
+    static int Fcnt = 0; // Count the number of F's
     int CurFcnt = Fcnt++;
     char const *Uerr =
         "factor does not start with '(' | ID | FFLOATLIT";
@@ -449,7 +432,7 @@ float F(void)
     switch (iTok)
     {
     case TOK_NOT:
-        cout << "-->found ID: " << yytext << endl;
+        cout << "-->found not: " << yytext << endl;
 
         // Read past what we have found
         iTok = yylex();
@@ -469,7 +452,7 @@ float F(void)
     }
     // If we made it to here, no not or minus
     if (IsFirstOfU())
-        U();
+        rValue = U();
     else
         throw Uerr;
 
@@ -493,18 +476,26 @@ float U(void)
     switch (iTok)
     {
     case TOK_IDENTIFIER:
-        cout << "-->found " << yytext << endl;
+        cout << "-->found ID: " << yytext << endl;
+
+        // Look up value of identifier in symbol table
+        it = SymbolTable.find(yytext);
+        // If the symbol is not in the table, uninitialized identifier error
+        if (it == SymbolTable.end())
+            throw "uninitialized identifier used in expression";
+        // Return the value of the identifier
+        rValue = it->second;
 
         // Read past what we have found
         iTok = yylex();
         break;
 
     case TOK_FLOATLIT:
+
         cout << "-->found FLOATLIT: " << yytext << endl;
 
         // Capture the value of this literal
         rValue = (float)atof(yytext);
-
         iTok = yylex();
         break;
 
@@ -534,8 +525,10 @@ float U(void)
 
 //*****************************************************************************
 // G --> read [ STRINGLIT ] ID;
-void G(void)
+float G(void)
 {
+    float rValue = 0;
+    SymbolTableT::iterator it;
     static int Gcnt = 0; // Count the number of A's
     int CurGcnt = Gcnt++;
 
@@ -555,7 +548,16 @@ void G(void)
     if (iTok != TOK_IDENTIFIER)
         throw "missing identifier in assignment statement";
     cout << "-->found ID: " << yytext << endl;
-    string IDname = yytext;
+    it = SymbolTable.find(yytext);
+    //cout << "symbol table says: " << (it == SymbolTable.end()) << endl;
+    if (it == SymbolTable.end())
+    {
+        SymbolTable.insert(pair<string, float>(yytext, 1.0));
+    }
+
+    // Update ID in symbol table with value from expression
+    it = SymbolTable.find(yytext);
+    it->second = rValue;
 
     // Last should be a ';' token
     iTok = yylex();
@@ -567,13 +569,14 @@ void G(void)
     iTok = yylex();
 
     cout << psp(CurGcnt) << "exit G " << CurGcnt << endl;
+    return rValue;
 }
 
 //*****************************************************************************
 // O --> print [ STRINGLIT ] [ ID ];
 void O(void)
 {
-
+    SymbolTableT::iterator it;
     static int Ocnt = 0; // Count the number of A's
     int CurOcnt = Ocnt++;
 
@@ -646,7 +649,7 @@ void C(void)
         throw "next is not P";
 
     if (iTok == TOK_ELSE)
-    {   
+    {
         cout << "-->found else" << endl;
         if (IsFirstOfP())
             P();
