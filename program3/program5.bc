@@ -1,0 +1,15 @@
+{ 
+  let i := 0.0;
+  while (i < 5.0)
+  {
+    print "i: " i;
+    let j := 0.0;
+    while ((j < i) or (j == 5.0))
+    {
+      print "j: " j;
+      let j := j + 1.0;
+    }
+    print j;
+    let i := i + 1.0;
+  }
+}
